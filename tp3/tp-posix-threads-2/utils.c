@@ -12,7 +12,7 @@ pthread_key_t task_info_key;
 long sem_impl;        // Use the semaphore implementation or not
 long semantics;       // Semantics BLOCKING 0, NONBLOCKING 1, TIMEDOUT 2
 long buffer_size;     // Size of the protected buffer
-long n_values;        // Number of produced / consumed values 
+long n_values;        // Number of produced / consumed values
 long n_consumers;     // Number of consumers
 long n_producers;     // Number of producers
 long consumer_period; // Period of consumer (millis)
@@ -53,12 +53,12 @@ void resynchronize(){
 void print_task_activity(char * action, int * data) {
   int * id = (int *)pthread_getspecific(task_info_key);
   char * kind;
-  
+
   if (*id < n_consumers)
     kind = consumer_name;
   else
     kind = producer_name;
-  
+
   if (data == NULL)
     printf("%03ld %s %02d %s (%c) - data=NULL\n",
 	   relative_clock()/1000,
@@ -104,8 +104,8 @@ void delay_until(struct timespec * deadline) {
     ts_sleep.tv_sec--;
   }
   if (ts_sleep.tv_sec < 0) return;
-  
-  nanosleep (&ts_sleep, NULL);
+
+  nanosleep (&ts_sleep, &tv_now);
 }
 
 // Compute time elapsed from start time
@@ -115,7 +115,7 @@ long relative_clock() {
 
   gettimeofday(&tv_now, NULL);
   TIMEVAL_TO_TIMESPEC(&tv_now, &ts_now);
-  
+
   ts_now.tv_nsec = ts_now.tv_nsec - start_time.tv_nsec;
   ts_now.tv_sec = ts_now.tv_sec - start_time.tv_sec;
   if (ts_now.tv_nsec < 0) {
@@ -133,7 +133,7 @@ struct timespec get_start_time() {
 // Store current time as the start time
 void set_start_time() {
   struct timeval  tv_start_time; // start time as a timeval
-  
+
   gettimeofday(&tv_start_time, NULL);
   TIMEVAL_TO_TIMESPEC(&tv_start_time, &start_time);
 }
@@ -143,7 +143,7 @@ void set_start_time() {
 int get_string (FILE * f, char * s, char * file, int line) {
   char b[64];
   char * c;;
-  
+
   while (fgets (b, 64, f) != NULL) {
     c = strchr (b, '\n');
     *c = '\0';
@@ -160,7 +160,7 @@ int get_string (FILE * f, char * s, char * file, int line) {
 int get_long (FILE * f, long * l, char * file, int line) {
   char b[64];
   char * c;;
-  
+
   if (fgets (b, 64, f) != NULL) {
     c = strchr (b, '\n');
     *c = '\0';
