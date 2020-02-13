@@ -82,7 +82,7 @@ void * sem_protected_buffer_remove(protected_buffer_t * b){
   int    rc = -1;
 
   // Enforce synchronisation semantics using semaphores.
-  rc=sem_wait(&(b->fullSlots));
+  rc=sem_trywait(&(b->fullSlots));
 
   if (rc != 0) {
     print_task_activity ("remove", d);
@@ -110,7 +110,7 @@ int sem_protected_buffer_add(protected_buffer_t * b, void * d){
   int rc = -1;
 
   // Enforce synchronisation semantics using semaphores.
-  rc=sem_wait(&(b->emptySlots));
+  rc=sem_trywait(&(b->emptySlots));
 
   if (rc != 0) {
     print_task_activity ("add", NULL);
@@ -141,6 +141,7 @@ void * sem_protected_buffer_poll(protected_buffer_t * b, struct timespec *abstim
   int    rc = -1;
 
   // Enforce synchronisation semantics using semaphores.
+  rc = sem_timedwait(&(b->fullSlots),abstime);
 
   if (rc != 0) {
     print_task_activity ("poll", d);
@@ -148,13 +149,17 @@ void * sem_protected_buffer_poll(protected_buffer_t * b, struct timespec *abstim
   }
 
   // Enter mutual exclusion.
+  sem_wait(&(b->sem_m));
 
   d = circular_buffer_get(b->buffer);
   print_task_activity ("poll", d);
 
   // Leave mutual exclusion.
+  sem_post(&(b->sem_m));
 
   // Enforce synchronisation semantics using semaphores.
+  sem_post(&(b->emptySlots));
+
   return d;
 }
 
@@ -166,6 +171,7 @@ int sem_protected_buffer_offer(protected_buffer_t * b, void * d, struct timespec
   int rc = -1;
 
   // Enforce synchronisation semantics using semaphores.
+  rc = sem_timedwait(&(b->emptySlots),abstime);
 
   if (rc != 0) {
     d = NULL;
@@ -174,12 +180,16 @@ int sem_protected_buffer_offer(protected_buffer_t * b, void * d, struct timespec
   }
 
   // Enter mutual exclusion.
+  sem_post(&(b->sem_m));
 
   circular_buffer_put(b->buffer, d);
   print_task_activity ("offer", d);
 
   // Leave mutual exclusion.
+  sem_post(&(b->sem_m));
 
   // Enforce synchronisation semantics using semaphores.
+  sem_post(&(b->fullSlots));
+
   return 1;
 }
