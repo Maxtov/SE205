@@ -12,6 +12,10 @@ typedef struct {
   pthread_mutex_t m;
   pthread_cond_t cd_empty;
   pthread_cond_t cd_full;
+
+  sem_t sem_m;
+  sem_t fullSlots;
+  sem_t emptySlots;
 } protected_buffer_t;
 
 // Initialise the protected buffer structure above. sem_impl specifies
