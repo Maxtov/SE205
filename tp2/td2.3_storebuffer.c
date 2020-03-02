@@ -48,7 +48,7 @@ int main()
     // Can this happen? Should this happen?
     if (counter == 2)
     {
-      printf("He! (%d)\n", i);
+      printf("He Jules, t'es encore bourré ?! (%d)\n", i);
       return 0;
     }
 

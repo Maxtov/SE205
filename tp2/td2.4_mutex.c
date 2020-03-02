@@ -69,7 +69,12 @@ void *thread(void *parameter)
   return NULL;
 }
 
-// Create and start two threads and observe the interleavings, synchronizing 
+typedef struct my_mutex_t{
+  int ticket;
+  int turn;
+}
+
+// Create and start two threads and observe the interleavings, synchronizing
 // accesses to a shared list using a home-brew mutex implementation.
 // Always returns 0.
 int main()

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <pthread.h>
 
-#define SIZE 10
+#define SIZE 10000
 
 // A shared array of unsigned integers (non-atomic, no memory model specified)
 static unsigned int x[SIZE] = {0,};
@@ -13,6 +13,8 @@ static atomic_uint counter = 0;
 // The same code for all threads.
 void *thread(void *parameter)
 {
+  printf("pthread n°%x\n", (unsigned int)(pthread_self()));
+
   while(counter < SIZE)
   {
     x[atomic_fetch_add(&counter, 1)] = (unsigned int)pthread_self();
