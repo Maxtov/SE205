@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit;
 
 class NatBoundedBuffer extends BoundedBuffer {
 
-    // Initialise the protected buffer structure above. 
+    // Initialise the protected buffer structure above.
     NatBoundedBuffer (int maxSize) {
         super(maxSize);
     }
@@ -15,15 +15,22 @@ class NatBoundedBuffer extends BoundedBuffer {
         Object value;
 
         // Enter mutual exclusion
-            
+        synchronized (this)  {
+
             // Wait until there is a full slot available.
+            while(this.size == 0){
+              try{wait();}
+              catch(Exception e){}
+            }
 
             // Signal or broadcast that an empty slot is available (if needed)
+              notifyAll();
 
             value = super.get();
 
             // Leave mutual exclusion and enforce synchronisation semantics
             // using semaphores.
+        }
         return value;
     }
 
@@ -31,15 +38,22 @@ class NatBoundedBuffer extends BoundedBuffer {
     // not possible immedidately, the method call blocks until it is.
     boolean put(Object value) {
         // Enter mutual exclusion
-            
+        synchronized (this){
+
             // Wait until there is a empty slot available.
+            while(this.size == this.maxSize){
+              try{wait();}
+              catch(Exception e){}
+            }
 
             // Signal or broadcast that a full slot is available (if needed)
+            notifyAll();
 
             super.put(value);
 
             // Leave mutual exclusion and enforce synchronisation semantics
             // using semaphores.
+        }
         return true;
     }
 
@@ -49,12 +63,16 @@ class NatBoundedBuffer extends BoundedBuffer {
         Object value = null;
 
         // Enter mutual exclusion
-            
-            // Signal or broadcast that an empty slot is available (if needed)
-
+        synchronized (this) {
             value=super.get();
 
+            // Signal or broadcast that an empty slot is available (if needed)
+            if(value==null){
+              notifyAll();
+            }
+
             // Leave mutual exclusion
+        }
         return value;
     }
 
@@ -64,12 +82,15 @@ class NatBoundedBuffer extends BoundedBuffer {
         boolean done;
 
         // Enter mutual exclusion
-            
-            // Signal or broadcast that a full slot is available (if needed)
-
+        synchronized (this) {
             done=super.put(value);
 
+            // Signal or broadcast that a full slot is available (if needed)
+            if(!done)
+              notifyAll();
+
             // Leave mutual exclusion
+        }
         return done;
     }
 
@@ -85,17 +106,22 @@ class NatBoundedBuffer extends BoundedBuffer {
         boolean interrupted = true;
 
         // Enter mutual exclusion
+        synchronized (this) {
+            now = System.currentTimeMillis();
 
             // Wait until a full slot is available but wait
             // no longer than the given deadline
-    
-            if (!done) return null;
+            while((value = super.get()) == null){
+              try{wait(deadline-now);}
+              catch(Exception e){}
+            }
 
-            // Signal or broadcast that an full slot is available (if needed)
+            if(System.currentTimeMillis() <= deadline){
+              notifyAll();
+            }
 
-            value = super.get();
-
-            // Leave mutual exclusion 
+            // Leave mutual exclusion
+        }
         return value;
     }
 
@@ -110,18 +136,27 @@ class NatBoundedBuffer extends BoundedBuffer {
         long    now;
 
         // Enter mutual exclusion
+        synchronized (this) {
+            now = System.currentTimeMillis();
 
             // Wait until a empty slot is available but wait
             // no longer than the given deadline
-    
-            if (!done) return false;
+            while((done = super.put(value)) == false){
+              try{wait(deadline-now);}
+              catch(Exception e){}
+            }
+
+            if(System.currentTimeMillis() <= deadline){
+              notifyAll();
+            }
 
             // Signal or broadcast that an empty slot is available (if needed)
 
-            super.put(value);
+
 
             // Leave mutual exclusion and enforce synchronisation semantics
             // using semaphores.
+        }
         return true;
     }
 }
