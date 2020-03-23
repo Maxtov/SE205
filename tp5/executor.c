@@ -63,8 +63,10 @@ future_t * submit_callable (executor_t * executor, callable_t * callable) {
   
   // Try to create a thread, but allow to exceed core_pool_size (last
   // parameter set to true).
-  pool_thread_create (executor->thread_pool, main_pool_thread, future, 1);
-  return future;
+  if(!pool_thread_create (executor->thread_pool, main_pool_thread, future, 1))
+    return NULL;
+
+  return future;  
 }
 
 // Get result from callable execution. Block if not available.
@@ -164,9 +166,15 @@ void * main_pool_thread (void * arg) {
 // Wait for pool threads to be completed
 void executor_shutdown (executor_t * executor) {
   thread_pool_t * thread_pool = executor->thread_pool;
+
   thread_pool_shutdown(thread_pool);
-  
+
   // Fill the queue of null futures to unblock potential threads
+  int done=1;
+  while(done == 1){
+    done = protected_buffer_add(executor->futures, NULL);
+  }
+
   wait_thread_pool_empty(executor->thread_pool);
   printf ("%06ld [executor_shutdown]\n", relative_clock());
 }

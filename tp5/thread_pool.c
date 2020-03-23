@@ -14,7 +14,7 @@ thread_pool_t * thread_pool_init(int core_pool_size, int max_pool_size) {
   thread_pool->max_pool_size  = max_pool_size;
   thread_pool->size           = 0;
   pthread_mutex_init(&(thread_pool->m_thread_pool),NULL);
-  pthread_cond_init(&(thread_pool->cond), NULL);
+  pthread_cond_init(&(thread_pool->cond_empty), NULL);
   return thread_pool;
 }
 
@@ -57,16 +57,20 @@ void thread_pool_shutdown(thread_pool_t * thread_pool) {
 // threads already allocated is large enough. If so, decrease threads
 // number and broadcast update. Protect against concurrent accesses.
 int pool_thread_remove (thread_pool_t * thread_pool) {
-  int done = 0;
+  int done = 1;
 
   // Protect against concurrent accesses and check whether the thread
   // can be deallocated.
   pthread_mutex_lock(&(thread_pool->m_thread_pool));
 
   if (thread_pool->size > thread_pool->core_pool_size) {
-    done = 1;
     thread_pool->size--;
-    pthread_cond_broadcast(&(thread_pool->cond));
+  } else if(thread_pool->shutdown) {
+    thread_pool->size--;
+  } 
+
+  if(thread_pool->size == 0){
+    pthread_cond_broadcast(&(thread_pool->cond_empty));
   }
 
   if (done)
@@ -79,6 +83,11 @@ int pool_thread_remove (thread_pool_t * thread_pool) {
 // Wait until thread number equals zero. Protect the thread pool
 // structure against concurrent accesses.
 void wait_thread_pool_empty (thread_pool_t * thread_pool) {
+  pthread_mutex_lock(&(thread_pool->m_thread_pool));
+  while (thread_pool->size != 0) {
+    pthread_cond_wait(&(thread_pool->cond_empty), &(thread_pool->m_thread_pool));
+  }
+  pthread_mutex_unlock(&(thread_pool->m_thread_pool));
 }  
 
 int get_shutdown(thread_pool_t * thread_pool) {
