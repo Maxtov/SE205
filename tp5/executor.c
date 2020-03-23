@@ -40,6 +40,8 @@ future_t * submit_callable (executor_t * executor, callable_t * callable) {
 
   // Future must include synchronisation objects to block threads
   // until the result of the callable computation becames available.
+  pthread_mutex_init(&(future->mutex), NULL);
+  pthread_cond_init(&(future->cond), NULL);
 
   // Try to create a thread, but do not force to exceed core_pool_size
   // (last parameter set to false).
@@ -48,6 +50,8 @@ future_t * submit_callable (executor_t * executor, callable_t * callable) {
   
   // When there are already enough created threads, queue the callable
   // in the blocking queue.
+  if(protected_buffer_add(executor->futures, future))
+    return future;
 
   // When the queue is full, pop the first future from the queue and
   // push the current one.
@@ -59,6 +63,9 @@ future_t * submit_callable (executor_t * executor, callable_t * callable) {
   
   // Try to create a thread, but allow to exceed core_pool_size (last
   // parameter set to true).
+  if(pool_thread_create (executor->thread_pool, main_pool_thread, future, 1))
+    return future;
+
   return NULL;
 }
 
@@ -68,12 +75,16 @@ void * get_callable_result (future_t * future) {
 
   // Protect against concurrent accesses. Block until the callable has
   // completed.
-
-  result = (void *) future->result;
+  pthread_mutex_lock(&(future->mutex));
   
   // Unprotect against concurrent accesses
+  while (future->completed == 0)
+    pthread_cond_wait(&(future->cond), &(future->mutex));
+
+  result = (void *) future->result;
 
   // Do not bother to deallocate future
+  pthread_mutex_unlock(&(future->mutex));
   return result;
 }
 
@@ -105,6 +116,8 @@ void * main_pool_thread (void * arg) {
         // As the callable is completed, the completed attribute and
         // the synchronisation objects should be updated to resume
         // threads waiting for the result.
+        future->completed = 1;
+        pthread_cond_broadcast(&(future->cond));
         
         break;
       }
@@ -121,6 +134,7 @@ void * main_pool_thread (void * arg) {
       // If the executor does not deallocate pool threads after being
       // inactive for a xhile, just wait for the next available
       // callable / future.
+      future = (future_t *) protected_buffer_get(executor->futures);
       
       // If there is no callable to handle, remove the current pool
       // thread from the pool. 
@@ -131,7 +145,14 @@ void * main_pool_thread (void * arg) {
       // If the executor is configured to release a thread when it is
       // idle for keep_alive_time milliseconds, try to get a new
       // callable / future during at most keep_alive_time ms.
-      
+      struct timeval  tv_now;
+      struct timespec ts_wait;
+      gettimeofday(&tv_now, NULL);
+      TIMEVAL_TO_TIMESPEC(&tv_now, &ts_wait);
+      add_millis_to_timespec (&ts_wait, executor->keep_alive_time);
+
+      protected_buffer_poll(executor->futures, &ts_wait);
+
       // If there is no callable to handle, remove the current pool
       // thread from the pool. And then, complete.
       if ((future == NULL) && pool_thread_remove (executor->thread_pool))

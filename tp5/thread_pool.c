@@ -14,6 +14,7 @@ thread_pool_t * thread_pool_init(int core_pool_size, int max_pool_size) {
   thread_pool->max_pool_size  = max_pool_size;
   thread_pool->size           = 0;
   pthread_mutex_init(&(thread_pool->m_thread_pool),NULL);
+  pthread_cond_init(&(thread_pool->cond), NULL);
   return thread_pool;
 }
 
@@ -22,9 +23,10 @@ thread_pool_t * thread_pool_init(int core_pool_size, int max_pool_size) {
 // to true, create a new thread. If a thread is created, use run as a
 // main procedure and future as run parameter.
 int pool_thread_create (thread_pool_t * thread_pool,
-			main_func_t     main,
-			void          * future,
-			int             force) {
+      main_func_t     main,
+      void          * future,
+      int             force) {
+
   int done = 0;
   pthread_t thread;
 
@@ -33,8 +35,10 @@ int pool_thread_create (thread_pool_t * thread_pool,
 
   // Always create a thread as long as there are less then
   // core_pool_size threads created.
-  if (thread_pool->size < thread_pool->core_pool_size) {
+  if (thread_pool->size < thread_pool->core_pool_size || ( force && (thread_pool->size < thread_pool->max_pool_size))) {
     pthread_create(&thread,NULL,main,future);
+    done = 1;
+    thread_pool->size++;
   }
 
   // Do not protect the structure against concurrent accesses anymore
@@ -53,12 +57,22 @@ void thread_pool_shutdown(thread_pool_t * thread_pool) {
 // threads already allocated is large enough. If so, decrease threads
 // number and broadcast update. Protect against concurrent accesses.
 int pool_thread_remove (thread_pool_t * thread_pool) {
-  int done = 1;
+  int done = 0;
 
   // Protect against concurrent accesses and check whether the thread
   // can be deallocated.
+  pthread_mutex_lock(&(thread_pool->m_thread_pool));
+
+  if (thread_pool->size > thread_pool->core_pool_size) {
+    done = 1;
+    thread_pool->size--;
+    pthread_cond_broadcast(&(thread_pool->cond));
+  }
+
   if (done)
     printf("%06ld [pool_thread] terminated\n", relative_clock());
+
+  pthread_mutex_unlock(&(thread_pool->m_thread_pool));
   return done;
 }  
 

@@ -38,3 +38,4 @@ int circular_buffer_put(circular_buffer_t * b, void * d){
 int circular_buffer_size(circular_buffer_t * b) {
   return b->size;
 }
+   
