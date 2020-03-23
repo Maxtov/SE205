@@ -63,10 +63,8 @@ future_t * submit_callable (executor_t * executor, callable_t * callable) {
   
   // Try to create a thread, but allow to exceed core_pool_size (last
   // parameter set to true).
-  if(pool_thread_create (executor->thread_pool, main_pool_thread, future, 1))
-    return future;
-
-  return NULL;
+  pool_thread_create (executor->thread_pool, main_pool_thread, future, 1);
+  return future;
 }
 
 // Get result from callable execution. Block if not available.
@@ -151,7 +149,7 @@ void * main_pool_thread (void * arg) {
       TIMEVAL_TO_TIMESPEC(&tv_now, &ts_wait);
       add_millis_to_timespec (&ts_wait, executor->keep_alive_time);
 
-      protected_buffer_poll(executor->futures, &ts_wait);
+      future = (future_t *) protected_buffer_poll(executor->futures, &ts_wait);
 
       // If there is no callable to handle, remove the current pool
       // thread from the pool. And then, complete.
