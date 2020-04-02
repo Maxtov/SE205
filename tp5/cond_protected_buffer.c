@@ -97,6 +97,7 @@ int cond_protected_buffer_add(protected_buffer_t * b, void * d){
   // unprotected circular buffer (if needed)
   done = circular_buffer_put(b->buffer, d);
   if (!done) d = NULL;
+  
   print_task_activity ("add", d);
 
   pthread_cond_broadcast(&(b->cd_empty));
@@ -121,18 +122,17 @@ void * cond_protected_buffer_poll(protected_buffer_t * b, struct timespec *absti
   // Wait until there is an empty slot to put data in the unprotected
   // circular buffer (circular_buffer_put) but waits no longer than
   // the given timeout.
-  while((d = circular_buffer_get(b->buffer))==NULL){
+  while(b->buffer->size == 0){
+    d = circular_buffer_get(b->buffer);
     rc = pthread_cond_timedwait(&(b->cd_empty),&(b->m),abstime);
     if (rc == ETIMEDOUT) break;
   }
 
   // Signal or broadcast that a full slot is available in the
   // unprotected circular buffer (if needed)
-
-
-  if(rc!=ETIMEDOUT){
+  if((d=circular_buffer_get(b->buffer))!=NULL) 
     pthread_cond_broadcast(&(b->cd_full));
-  } 
+
 
 
   print_task_activity ("poll", d);

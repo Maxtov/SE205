@@ -10,7 +10,12 @@
 // Start time as a timespec
 struct timespec start_time;
 
+pthread_mutex_t m_delay;
+pthread_cond_t cd_delay;
+
 void init_utils(){
+  pthread_mutex_init(&m_delay,NULL);
+  pthread_cond_init(&cd_delay,NULL);
 }
 
 // Add msec milliseconds to timespec ts (seconds, nanoseconds)
@@ -28,21 +33,9 @@ void add_millis_to_timespec (struct timespec * ts, long msec) {
 // Delay until an absolute time. Translate the absolute time into a
 // relative one and use nanosleep. This is incorrect (we fix that).
 void delay_until(struct timespec * deadline) {
-  struct timeval  tv_now;
-  struct timespec ts_now;
-  struct timespec ts_sleep;
-
-  gettimeofday(&tv_now, NULL);
-  TIMEVAL_TO_TIMESPEC(&tv_now, &ts_now);
-  ts_sleep.tv_nsec = deadline->tv_nsec - ts_now.tv_nsec;
-  ts_sleep.tv_sec = deadline->tv_sec - ts_now.tv_sec;
-  if (ts_sleep.tv_nsec < 0) {
-    ts_sleep.tv_nsec = 1E9 + ts_sleep.tv_nsec;
-    ts_sleep.tv_sec--;
-  }
-  if (ts_sleep.tv_sec < 0) return;
-  
-  nanosleep (&ts_sleep, &ts_now);
+  pthread_mutex_lock(&m_delay);
+  pthread_cond_timedwait(&cd_delay,&m_delay,deadline);
+  pthread_mutex_unlock(&m_delay);
 }
 
 // Compute time elapsed from start time

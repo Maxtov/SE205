@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <sys/time.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "executor.h"
 #include "utils.h"
@@ -123,6 +126,8 @@ void * main_pool_thread (void * arg) {
       }
 
       // When the callable is periodic, wait for the next release time.
+      add_millis_to_timespec (&ts_deadline, callable->period);
+      delay_until(&ts_deadline);
 
       // Even when this callable is periodic, check whether the
       // executor requested a shutdown
@@ -152,7 +157,7 @@ void * main_pool_thread (void * arg) {
       add_millis_to_timespec (&ts_wait, executor->keep_alive_time);
 
       future = (future_t *) protected_buffer_poll(executor->futures, &ts_wait);
-
+      
       // If there is no callable to handle, remove the current pool
       // thread from the pool. And then, complete.
       if ((future == NULL) && pool_thread_remove (executor->thread_pool))
@@ -170,11 +175,8 @@ void executor_shutdown (executor_t * executor) {
   thread_pool_shutdown(thread_pool);
 
   // Fill the queue of null futures to unblock potential threads
-  int done=1;
-  while(done == 1){
-    done = protected_buffer_add(executor->futures, NULL);
-  }
-
+  while(protected_buffer_add(executor->futures,NULL));
+  
   wait_thread_pool_empty(executor->thread_pool);
   printf ("%06ld [executor_shutdown]\n", relative_clock());
 }
